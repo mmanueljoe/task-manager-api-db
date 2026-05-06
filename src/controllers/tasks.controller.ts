@@ -1,97 +1,128 @@
-import { type Request, type Response } from "express";
-import { TASK_DATA as tasks } from "../data/tasks.js";
-import { v4 as uuidv4 } from "uuid";
-import { type Task } from "../types/types.js";
+import mongoose from "mongoose";
+import { type Request, type Response, type NextFunction } from "express";
+import { TaskModel } from "../models/task.model.js";
 
-const getAllTasks = (_req: Request, res: Response) => {
-  return res.status(200).json(tasks);
+const getAllTasks = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { completed, priority, sort, order, page, limit } = req.query;
+
+    const filter: Record<string, unknown> = {};
+
+    const pageNum: number = page ? Number.parseInt(page as string) : 1;
+
+    const limitNum: number = limit ? Number.parseInt(limit as string) : 10;
+
+    const skip: number = (pageNum - 1) * limitNum;
+    
+
+    if(completed !== undefined) filter["completed"] = completed === "true";
+
+    if(priority !== undefined) filter["priority"] = priority;
+    
+    const sortObj: Record<string, 1 | -1> = sort ? { [sort as string]: order === "desc" ? -1 : 1 } : {};
+
+
+    const [tasks, total] = await Promise.all([
+      TaskModel.find(filter).sort(sortObj).skip(skip).limit(limitNum),
+      TaskModel.countDocuments(filter)
+    ]);
+
+    return res.status(200).json({
+      tasks,
+      total,
+      page: pageNum,
+      limit: limitNum
+    });
+  } catch (err) {
+    return next(err);
+  }
 };
 
-const getTaskById = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const task = tasks.find((task) => task.id === id);
+const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params["id"] as string;
 
-  if (!task) {
-    return res.status(404).json({ message: "Task not found" });
+    if(!mongoose.Types.ObjectId.isValid(id)){
+      return res.status(400).json({ message: "Invalid ID" });
+    }
+
+    const task = await TaskModel.findById(id);
+
+    if (!task) {
+      return res.status(404).json({ message: "Task not found" });
+    }
+
+    return res.status(200).json(task);
+  } catch (err) {
+    return next(err);
+
   }
-
-  return res.status(200).json(task);
 };
 
-const createTask = (req: Request, res: Response) => {
-  const newTask = req.body;
+const createTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const newTask = req.body;
 
-  if (!newTask.title) {
-    return res.status(400).json({ message: "Title is required" });
+    if (!newTask.title || !newTask.description) {
+      return res.status(400).json({ message: "Title and description are required" });
+    }
+
+    const task = await TaskModel.create(newTask);
+
+    return res.status(201).json({ task, message: "Task created successfully" });
+  } catch (err) {
+    if(err instanceof mongoose.Error.ValidationError){
+      return res.status(400).json({ message: err.message });
+    }
+    return next(err);
   }
-
-  const task = {
-    id: uuidv4(),
-    title: newTask.title,
-    description: newTask.description ?? "",
-    completed: false,
-    priority: newTask.priority ?? "low",
-  };
-
-  tasks.push(task);
-
-  return res.status(201).json({ task, message: "Task created successfully" });
 };
 
+const updateTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params["id"] as string;
 
+    if(!mongoose.Types.ObjectId.isValid(id)){
+      return res.status(400).json({ message: "Invalid ID" });
+    }
 
+    const newTask = req.body;
 
-const updateTask = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { title, description, completed, priority } = req.body;
-  const taskIndex = tasks.findIndex((task) => task.id === id);
+    if(!Object.keys(newTask).length) return res.status(400).json({ message: "No fields to update" });
 
-  if (taskIndex === -1) {
-    return res.status(404).json({ message: "Task not found" });
+    const task = await TaskModel.findById(id);
+
+    if(!task) return res.status(404).json({ message: "Task not found" });
+
+    await TaskModel.findByIdAndUpdate(id, newTask, { new: true });
+
+    return res.status(200).json({ message: "Task updated successfully" });
+  } catch (err) {
+    if(err instanceof mongoose.Error.ValidationError){
+      return res.status(400).json({ message: err.message });
+    }
+    return next(err);
   }
-
-  const validPriorities = ["low", "medium", "high"];
-
-  if (priority !== undefined && !validPriorities.includes(priority)) {
-    return res
-      .status(400)
-      .json({ message: "Priority must be low, medium, or high" });
-  }
-
-  if (completed !== undefined && typeof completed !== "boolean") {
-    return res.status(400).json({ message: "Completed must be a boolean" });
-  }
-
-  tasks[taskIndex] = {
-    ...tasks[taskIndex],
-    ...(title !== undefined && { title }),
-    ...(description !== undefined && { description }),
-    ...(completed !== undefined && { completed }),
-    ...(priority !== undefined && { priority }),
-  } as Task;
-
-  return res.status(200).json({ message: "Task updated successfully" });
 };
 
+const deleteTask = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params["id"] as string;
 
-const deleteTask = (req: Request, res: Response) => {
-  const { id } = req.params;
-  const taskIndex = tasks.findIndex((task) => task.id === id);
+    if(!mongoose.Types.ObjectId.isValid(id)){
+      return res.status(400).json({ message: "Invalid ID" });
+    }
 
-  if (taskIndex === -1) {
-    return res.status(404).json({ message: "Task not found" });
+    const task = await TaskModel.findById(id);
+
+    if(!task) return res.status(404).json({ message: "Task not found" });
+
+    await TaskModel.findByIdAndDelete(id);
+
+    return res.status(200).json({ message: "Task deleted successfully" });
+  } catch (err) {
+    return next(err);
   }
-
-  tasks.splice(taskIndex, 1);
-
-  return res.status(200).json({ message: "Task deleted successfully" });
 };
 
-
-export {
-  getAllTasks,
-  getTaskById,
-  createTask,
-  updateTask,
-  deleteTask,
-};
+export { getAllTasks, getTaskById, createTask, updateTask, deleteTask };

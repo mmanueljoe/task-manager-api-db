@@ -4,6 +4,7 @@ import taskRouter from "./routes/tasks.routes.js";
 import { logRequest } from "./middleware/logger.js";
 import { notFoundHandler } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { connectDB } from "./config/db.js";
 
 configDotenv();
 
@@ -22,6 +23,15 @@ app.use(notFoundHandler);
 // global error handler
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+
+try {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+} catch (err) {
+  console.error(err);
+  process.exit(1);
+}
+
+
