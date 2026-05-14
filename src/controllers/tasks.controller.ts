@@ -52,10 +52,9 @@ const getTaskById = async (req: Request, res: Response, next: NextFunction) => {
       return res.status(404).json({ message: "Task not found" });
     }
 
-    return res.status(200).json(task);
+    return res.status(200).json({ task, message: "Task fetched successfully" });
   } catch (err) {
     return next(err);
-
   }
 };
 
@@ -90,13 +89,11 @@ const updateTask = async (req: Request, res: Response, next: NextFunction) => {
 
     if(!Object.keys(newTask).length) return res.status(400).json({ message: "No fields to update" });
 
-    const task = await TaskModel.findById(id);
+    const updatedTask = await TaskModel.findByIdAndUpdate(id, newTask, { new: true });
 
-    if(!task) return res.status(404).json({ message: "Task not found" });
+    if(!updatedTask) return res.status(404).json({ message: "Task not found" });
 
-    await TaskModel.findByIdAndUpdate(id, newTask, { new: true });
-
-    return res.status(200).json({ message: "Task updated successfully" });
+    return res.status(200).json({ task: updatedTask, message: "Task updated successfully" });
   } catch (err) {
     if(err instanceof mongoose.Error.ValidationError){
       return res.status(400).json({ message: err.message });

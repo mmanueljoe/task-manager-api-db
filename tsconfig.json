@@ -22,7 +22,6 @@
     "emitDeclarationOnly": false,
 
     // Stricter Typechecking Options
-    "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 
     // Style Options
@@ -37,7 +36,7 @@
     "strict": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "noUncheckedSideEffectImports": true,
+    "noUncheckedIndexedAccess": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
     "noEmit": false
